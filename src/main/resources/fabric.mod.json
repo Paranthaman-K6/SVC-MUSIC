@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "vcmusic",
+  "version": "${version}",
+  "name": "Voice Chat Music",
+  "description": "Client-side music player that mixes yt-dlp audio into Simple Voice Chat so your group hears it while you talk.",
+  "authors": [
+    "local"
+  ],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "dev.local.vcmusic.MusicMod"
+    ],
+    "voicechat": [
+      "dev.local.vcmusic.MusicVoicechatPlugin"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.20.1",
+    "minecraft": "~26.3",
+    "java": ">=25",
+    "fabric-api": "*",
+    "voicechat": ">=2.6.27"
+  }
+}
