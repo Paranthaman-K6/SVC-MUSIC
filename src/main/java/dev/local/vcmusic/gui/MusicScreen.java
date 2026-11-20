@@ -13,6 +13,8 @@ import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -34,6 +36,15 @@ public class MusicScreen extends Screen {
     private static final int CARD_BG = 0xFF121A24;
     private static final int BORDER = 0xFF46566E;
     private static final int TRACK = 0xFF2C3948;
+
+    private static final ItemStack NOTE = new ItemStack(Items.NOTE_BLOCK);
+    private static final ItemStack DISC = new ItemStack(Items.MUSIC_DISC_CAT);
+    private static final ItemStack SEARCH_ICON = new ItemStack(Items.SPYGLASS);
+    private static final ItemStack BOOK = new ItemStack(Items.BOOK);
+    private static final ItemStack SAVE_ICON = new ItemStack(Items.CHEST);
+    private static final ItemStack REMOVE_ICON = new ItemStack(Items.BARRIER);
+    private static final ItemStack NEXT_ICON = new ItemStack(Items.SPECTRAL_ARROW);
+    private static final ItemStack QUEUE_ICON = new ItemStack(Items.HOPPER);
 
     private int left;
     private int top;
@@ -64,7 +75,7 @@ public class MusicScreen extends Screen {
         lx = left + 10;
         rx = lx + COLUMN + 12;
 
-        addRenderableWidget(tip(Button.builder(Component.empty(), b -> onClose())
+        addRenderableWidget(tip(Button.builder(Component.literal("X"), b -> onClose())
                 .bounds(left + PANEL_WIDTH - 24, top + 4, 16, 12).build(), "Close the panel (K)"));
 
         search = new EditBox(font, lx, top + 24, 130, 18, Component.literal("Search"));
@@ -270,7 +281,7 @@ public class MusicScreen extends Screen {
 
         graphics.fill(left, top, right, top + 20, HEADER_BG);
         graphics.fill(left, top, left + 3, top + 20, ACCENT);
-        Icons.draw(graphics, Icons.NOTE, left + 8, top + 4, 12);
+        icon(graphics, NOTE, left + 8, top + 4, 12);
         graphics.text(font, title, left + 24, top + 6, TEXT, false);
         graphics.text(font, "K to close", right - 110, top + 7, MUTED, false);
 
@@ -283,18 +294,17 @@ public class MusicScreen extends Screen {
 
         super.extractRenderState(graphics, mouseX, mouseY, delta);
 
-        Icons.draw(graphics, Icons.SEARCH, lx + 136, top + 27);
-        Icons.draw(graphics, showSaved ? Icons.FOLDER : Icons.LIST, lx + 1, top + PANEL_HEIGHT - 22);
-        Icons.draw(graphics, Icons.SAVE, lx + 67, top + PANEL_HEIGHT - 22);
-        Icons.draw(graphics, Icons.REMOVE, lx + 133, top + PANEL_HEIGHT - 22);
-        Icons.draw(graphics, Icons.PAUSE, rx + 1, top + 83);
-        Icons.draw(graphics, Icons.NEXT, rx + 67, top + 83);
-        Icons.draw(graphics, Icons.STOP, rx + 133, top + 83);
-        Icons.draw(graphics, Icons.VOLUME, rx + 3, top + 109);
-        Icons.draw(graphics, Icons.MIC, rx + 3, top + 131);
-        Icons.draw(graphics, Icons.VOLUME, rx + 3, top + 153);
-        Icons.draw(graphics, Icons.QUEUE, rx + 3, top + 175);
-        Icons.draw(graphics, Icons.REMOVE, left + PANEL_WIDTH - 22, top + 4, 12);
+        icon(graphics, SEARCH_ICON, lx + 136, top + 27);
+        icon(graphics, showSaved ? BOOK : SEARCH_ICON, lx + 1, top + PANEL_HEIGHT - 22);
+        icon(graphics, SAVE_ICON, lx + 67, top + PANEL_HEIGHT - 22);
+        icon(graphics, REMOVE_ICON, lx + 133, top + PANEL_HEIGHT - 22);
+        icon(graphics, DISC, rx + 1, top + 83);
+        icon(graphics, NEXT_ICON, rx + 67, top + 83);
+        icon(graphics, REMOVE_ICON, rx + 133, top + 83);
+        icon(graphics, NOTE, rx + 3, top + 109);
+        icon(graphics, NOTE, rx + 3, top + 131);
+        icon(graphics, NOTE, rx + 3, top + 153);
+        icon(graphics, QUEUE_ICON, rx + 3, top + 175);
 
         int card = top + 42;
         graphics.fill(rx - 1, card - 1, rx + COLUMN + 1, card + 35, BORDER);
@@ -306,7 +316,7 @@ public class MusicScreen extends Screen {
             graphics.blit(RenderPipelines.GUI_TEXTURED, art.id(), rx + 5, card + 4,
                     0, 0, 16, 16, art.width(), art.height());
         } else {
-            Icons.draw(graphics, Icons.ART, rx + 6, card + 5, 14);
+            icon(graphics, DISC, rx + 6, card + 5, 14);
         }
         String now = fit(current == null ? "Nothing selected" : current.title(), COLUMN - 34);
         graphics.text(font, now, rx + 24, card + 5, current == null ? MUTED : TEXT, false);
@@ -368,6 +378,16 @@ public class MusicScreen extends Screen {
     private static String clock(long millis) {
         long seconds = millis / 1000;
         return (seconds / 60) + ":" + String.format("%02d", seconds % 60);
+    }
+
+    private void icon(GuiGraphicsExtractor graphics, ItemStack stack, int x, int y) {
+        icon(graphics, stack, x, y, 10);
+    }
+
+    private void icon(GuiGraphicsExtractor graphics, ItemStack stack, int x, int y, int size) {
+        if (minecraft.level != null && minecraft.player != null) {
+            graphics.item(stack, x, y, size);
+        }
     }
 
     private static String stateTooltip(String state, boolean playing) {
