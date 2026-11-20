@@ -3,9 +3,10 @@
   "id": "vcmusic",
   "version": "${version}",
   "name": "Voice Chat Music",
+  "icon": "assets/vcmusic/icon.png",
   "description": "Client-side music player that mixes yt-dlp audio into Simple Voice Chat so your group hears it while you talk.",
   "authors": [
-    "local"
+    "Paranthaman-K6"
   ],
   "license": "MIT",
   "environment": "client",
