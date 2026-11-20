@@ -11,6 +11,7 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -308,9 +309,15 @@ public class MusicScreen extends Screen {
         int card = top + 42;
         graphics.fill(rx - 1, card - 1, rx + COLUMN + 1, card + 35, BORDER);
         graphics.fill(rx, card, rx + COLUMN, card + 34, CARD_BG);
-        icon(graphics, DISC, rx + 6, card + 5, 14);
 
         Track current = MusicPlayer.INSTANCE.current();
+        AlbumArt.Art art = current == null ? null : AlbumArt.get(current.thumbnail());
+        if (art != null) {
+            graphics.blit(RenderPipelines.GUI_TEXTURED, art.id(), rx + 5, card + 4,
+                    0, 0, 16, 16, art.width(), art.height());
+        } else {
+            icon(graphics, DISC, rx + 6, card + 5, 14);
+        }
         String now = fit(current == null ? "Nothing selected" : current.title(), COLUMN - 34);
         graphics.text(font, now, rx + 24, card + 5, current == null ? MUTED : TEXT, false);
         if (current != null && mouseX >= rx + 24 && mouseX < rx + COLUMN && mouseY >= card + 5 && mouseY < card + 16) {

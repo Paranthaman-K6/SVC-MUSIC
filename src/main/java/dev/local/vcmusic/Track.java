@@ -1,6 +1,10 @@
 package dev.local.vcmusic;
 
-public record Track(String title, String url, int durationSeconds) {
+public record Track(String title, String url, int durationSeconds, String thumbnail) {
+
+    public Track(String title, String url, int durationSeconds) {
+        this(title, url, durationSeconds, null);
+    }
 
     public String durationLabel() {
         if (durationSeconds <= 0) {

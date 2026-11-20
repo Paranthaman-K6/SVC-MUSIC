@@ -79,12 +79,16 @@ public final class YtDlp {
             return null;
         }
         String title = string(entry, "title");
+        String thumbnail = string(entry, "thumbnail");
+        if (thumbnail == null && id != null) {
+            thumbnail = "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg";
+        }
         int duration = 0;
         JsonElement d = entry.get("duration");
         if (d != null && d.isJsonPrimitive()) {
             duration = (int) d.getAsDouble();
         }
-        return new Track(title == null ? url : title, url, duration);
+        return new Track(title == null ? url : title, url, duration, thumbnail);
     }
 
     private static String string(JsonObject object, String key) {

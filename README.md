@@ -46,7 +46,8 @@ Press **K** to open the panel (`M` is Simple Voice Chat's mute key, so it is not
 | Duck while speaking | on/off |
 | Pause / Next / Stop | queue control |
 
-Every control has a hover tooltip. Hover a song for its full title and duration.
+Every control has a hover tooltip. Hover a song for its full title and duration. Song rows and the
+now-playing card show YouTube thumbnail art when it is available.
 
 The same thing from chat:
 
