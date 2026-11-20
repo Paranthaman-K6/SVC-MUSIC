@@ -31,7 +31,11 @@ public final class MusicMod implements ClientModInitializer {
             }
         });
 
+        // The library lives in the global config dir, so reload it on every join to keep the
+        // same saved songs on all servers, and flush it before leaving.
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> Library.load());
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            Library.INSTANCE.save();
             MusicPlayer.INSTANCE.stop();
             MusicPlayer.INSTANCE.resetLocalChannel();
         });
