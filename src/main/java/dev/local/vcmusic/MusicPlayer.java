@@ -6,11 +6,10 @@ import de.maxhenkel.voicechat.api.events.MergeClientSoundEvent;
 import net.minecraft.client.Minecraft;
 import org.slf4j.Logger;import org.slf4j.LoggerFactory;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Owns the queue and the audio stream. The merge hook runs on Simple Voice Chat's mic thread,
@@ -24,7 +23,7 @@ public final class MusicPlayer {
     /** How long to wait for a microphone frame before telling the user voice chat is off. */
     private static final long MIC_SILENCE_NANOS = 1_500_000_000L;
 
-    private final Deque<Track> queue = new ArrayDeque<>();
+    private final List<Track> queue = new ArrayList<>();
     private final AudioGain gain = new AudioGain();
     private Track current;
     private AudioStream stream;
@@ -71,12 +70,12 @@ public final class MusicPlayer {
     }
 
     public synchronized void next() {
-        Track next = queue.poll();
-        if (next == null) {
+        if (queue.isEmpty()) {
             stop();
             return;
         }
-        play(next);
+        int index = MusicConfig.INSTANCE.shuffle ? ThreadLocalRandom.current().nextInt(queue.size()) : 0;
+        play(queue.remove(index));
     }
 
     public synchronized void stop() {

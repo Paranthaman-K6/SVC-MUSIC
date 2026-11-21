@@ -27,6 +27,8 @@ public final class MusicConfig {
     public float duckLevel = 0.35f;
     /** Volume of the local monitor copy only (0..1). */
     public float localVolume = 1.0f;
+    /** Play the queue in random order instead of first-in-first-out. */
+    public boolean shuffle = false;
 
     private static Path path() {
         return FabricLoader.getInstance().getConfigDir().resolve("vcmusic/config.json");

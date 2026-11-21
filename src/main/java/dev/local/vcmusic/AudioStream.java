@@ -5,10 +5,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.net.URI;
+import java.nio.file.Path;
 import java.util.concurrent.ArrayBlockingQueue;
 
 /**
- * One track: yt-dlp | ffmpeg -> 48 kHz mono s16le -> 960 sample frames.
+ * One track: yt-dlp | ffmpeg (or a local file) -> 48 kHz mono s16le -> 960 sample frames.
  * <p>
  * The queue is blocking on purpose. It gives backpressure to ffmpeg (and yt-dlp), which keeps
  * the stream at real time and makes pause work by simply not polling. 20 frames = 400 ms.
@@ -30,7 +32,10 @@ public final class AudioStream {
     private int framesRead;
 
     public AudioStream(String url, MusicConfig config, Runnable onEnd) throws IOException {
-        Process ytdlp = new ProcessBuilder(MusicConfig.resolve(config.ytdlp),
+        // Local files skip yt-dlp and go straight into ffmpeg.
+        boolean local = url.startsWith("file:");
+        String input = local ? Path.of(URI.create(url)).toString() : "pipe:0";
+        Process ytdlp = local ? null : new ProcessBuilder(MusicConfig.resolve(config.ytdlp),
                 "--no-playlist", "--no-warnings", "--no-progress",
                 "-f", "bestaudio/best", "-o", "-", url)
                 .start();
@@ -38,28 +43,37 @@ public final class AudioStream {
         try {
             ffmpeg = new ProcessBuilder(MusicConfig.resolve(config.ffmpeg),
                     "-hide_banner", "-loglevel", "error",
-                    "-re", "-i", "pipe:0",
+                    "-re", "-i", input,
                     "-f", "s16le", "-ar", "48000", "-ac", "1", "pipe:1")
                     .start();
         } catch (IOException e) {
-            ytdlp.destroy();
+            if (ytdlp != null) {
+                ytdlp.destroy();
+            }
             throw e;
         }
         this.ytdlp = ytdlp;
         this.ffmpeg = ffmpeg;
 
-        pump = new Thread(() -> transfer(ytdlp.getInputStream(), ffmpeg.getOutputStream()), "vcmusic-pump");
+        pump = ytdlp == null ? null
+                : new Thread(() -> transfer(ytdlp.getInputStream(), ffmpeg.getOutputStream()), "vcmusic-pump");
         reader = new Thread(() -> read(ffmpeg.getInputStream(), onEnd), "vcmusic-reader");
-        ytdlpErr = stderrThread(ytdlp, "vcmusic-ytdlp-err");
+        ytdlpErr = ytdlp == null ? null : stderrThread(ytdlp, "vcmusic-ytdlp-err");
         ffmpegErr = stderrThread(ffmpeg, "vcmusic-ffmpeg-err");
-        pump.setDaemon(true);
+        if (pump != null) {
+            pump.setDaemon(true);
+        }
         reader.setDaemon(true);
     }
 
     public void start() {
-        pump.start();
+        if (pump != null) {
+            pump.start();
+        }
         reader.start();
-        ytdlpErr.start();
+        if (ytdlpErr != null) {
+            ytdlpErr.start();
+        }
         ffmpegErr.start();
     }
 
@@ -129,9 +143,13 @@ public final class AudioStream {
 
     public void close() {
         closed = true;
-        ytdlp.destroy();
+        if (ytdlp != null) {
+            ytdlp.destroy();
+        }
         ffmpeg.destroy();
         reader.interrupt();
-        pump.interrupt();
+        if (pump != null) {
+            pump.interrupt();
+        }
     }
 }

@@ -1,7 +1,9 @@
 package dev.local.vcmusic.gui;
 
 import dev.local.vcmusic.Library;
+import dev.local.vcmusic.LocalMusic;
 import dev.local.vcmusic.MusicConfig;
+import dev.local.vcmusic.MusicMod;
 import dev.local.vcmusic.MusicPlayer;
 import dev.local.vcmusic.Track;
 import dev.local.vcmusic.YtDlp;
@@ -11,6 +13,7 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -73,15 +76,17 @@ public class MusicScreen extends Screen {
                 .bounds(left + PANEL_WIDTH - 24, top + 4, 16, 12).build(), "Close the panel (K)"));
 
         search = new EditBox(font, lx, top + 24, 130, 18, Component.literal("Search"));
-        search.setHint(Component.literal("YouTube link or song name..."));
+        search.setHint(Component.literal("Link, song name or folder path..."));
         search.setMaxLength(300);
-        addRenderableWidget(tip(search, "Paste a YouTube song or playlist link, or type a song name"));
+        addRenderableWidget(tip(search, "Paste a YouTube song or playlist link, type a song name, "
+                + "or a local file/folder path like ~/Music"));
 
         addRenderableWidget(tip(Button.builder(Component.literal("Search"), b -> search())
                 .bounds(lx + 134, top + 24, 60, 18)
-                .build(), "Look up the link or name; playlists appear as a list of songs"));
+                .build(), "Look up the link or name; playlists and folders appear as a list of songs"));
 
         trackList = new TrackList(COLUMN, PANEL_HEIGHT - 54 - 34, top + 54, 14);
+        trackList.setX(lx);
         trackList.onPick(track -> {
             if (showSaved) {
                 MusicPlayer.INSTANCE.play(track);
@@ -134,10 +139,17 @@ public class MusicScreen extends Screen {
                 "How loud you hear the music yourself"));
 
         addRenderableWidget(tip(Button.builder(Component.literal("Add all"), b -> addAll())
-                .bounds(rx, top + 172, COLUMN, 18)
+                .bounds(rx, top + 172, 116, 18)
                 .build(), "Queue every song in the current list, as a playlist"));
 
+        addRenderableWidget(tip(Button.builder(shuffleLabel(), b -> {
+            MusicConfig.INSTANCE.shuffle = !MusicConfig.INSTANCE.shuffle;
+            b.setMessage(shuffleLabel());
+        }).bounds(rx + 120, top + 172, 74, 18).build(),
+                "Play queued songs in random order"));
+
         queueList = new TrackList(COLUMN, PANEL_HEIGHT - 212 - 10, top + 212, 14);
+        queueList.setX(rx);
         addRenderableWidget(tip(queueList, "Songs waiting to play, in order"));
 
         refreshTrackList();
@@ -157,6 +169,10 @@ public class MusicScreen extends Screen {
 
     private Component duckLabel() {
         return Component.literal(MusicConfig.INSTANCE.duck ? "Duck while speaking" : "Ducking off");
+    }
+
+    private Component shuffleLabel() {
+        return Component.literal(MusicConfig.INSTANCE.shuffle ? "Shuffle on" : "Shuffle off");
     }
 
     private void refreshTrackList() {
@@ -180,7 +196,9 @@ public class MusicScreen extends Screen {
         status = "Searching...";
         CompletableFuture.supplyAsync(() -> {
             try {
-                return YtDlp.search(MusicConfig.INSTANCE, query, 10);
+                // A file or folder on disk is read locally; anything else goes to YouTube.
+                List<Track> local = LocalMusic.scan(query);
+                return local != null ? local : YtDlp.search(MusicConfig.INSTANCE, query, 10);
             } catch (Exception e) {
                 throw new CompletionException(e);
             }
@@ -193,9 +211,13 @@ public class MusicScreen extends Screen {
             showSaved = false;
             modeButton.setMessage(modeLabel());
             refreshTrackList();
-            status = looksLikeLink(query) && tracks.size() > 1
-                    ? "Playlist: " + tracks.size() + " songs"
-                    : (tracks.isEmpty() ? "No results" : tracks.size() + " result(s)");
+            if (LocalMusic.isPath(query)) {
+                status = tracks.isEmpty() ? "No audio files in that folder" : tracks.size() + " local song(s)";
+            } else {
+                status = looksLikeLink(query) && tracks.size() > 1
+                        ? "Playlist: " + tracks.size() + " songs"
+                        : (tracks.isEmpty() ? "No results" : tracks.size() + " result(s)");
+            }
         }));
     }
 
@@ -277,7 +299,8 @@ public class MusicScreen extends Screen {
         graphics.fill(left, top, left + 3, top + 20, ACCENT);
         icon(graphics, NOTE, left + 8, top + 4, 12);
         graphics.text(font, title, left + 24, top + 6, TEXT, false);
-        graphics.text(font, "K to close", right - 110, top + 7, MUTED, false);
+        String closeHint = "K / Esc to close";
+        graphics.text(font, closeHint, right - 30 - font.width(closeHint), top + 7, MUTED, false);
 
         graphics.text(font, showSaved ? "SAVED SONGS" : "SONGS", lx, top + 43, ACCENT, false);
         graphics.text(font, "PLAYER", rx, top + 26, ACCENT, false);
@@ -392,6 +415,20 @@ public class MusicScreen extends Screen {
     @Override
     public boolean isPauseScreen() {
         return false;
+    }
+
+    /** Keep the search box unfocused when the panel opens, otherwise K is typed instead of closing. */
+    @Override
+    protected void setInitialFocus() {
+    }
+
+    @Override
+    public boolean keyPressed(KeyEvent event) {
+        if (!search.isFocused() && MusicMod.openPanel.matches(event)) {
+            onClose();
+            return true;
+        }
+        return super.keyPressed(event);
     }
 
     @Override
