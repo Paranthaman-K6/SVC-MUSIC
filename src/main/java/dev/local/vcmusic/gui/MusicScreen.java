@@ -1,10 +1,13 @@
 package dev.local.vcmusic.gui;
 
+import dev.local.vcmusic.Downloader;
 import dev.local.vcmusic.Library;
 import dev.local.vcmusic.LocalMusic;
 import dev.local.vcmusic.MusicConfig;
 import dev.local.vcmusic.MusicMod;
 import dev.local.vcmusic.MusicPlayer;
+import dev.local.vcmusic.Playlist;
+import dev.local.vcmusic.Playlists;
 import dev.local.vcmusic.Track;
 import dev.local.vcmusic.YtDlp;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -49,12 +52,18 @@ public class MusicScreen extends Screen {
     private int rx;
 
     private EditBox search;
+    private Button searchButton;
     private TrackList trackList;
     private TrackList queueList;
     private Button modeButton;
     private Button pauseButton;
 
-    private boolean showSaved;
+    /** Which list the left column shows. */
+    private enum Mode { RESULTS, SAVED, PLAYLISTS }
+
+    private Mode mode = Mode.RESULTS;
+    /** The playlist being edited; null shows the list of playlists instead. */
+    private Playlist openPlaylist;
     private String status = "";
     private List<Track> results = List.of();
     private long lastQueueStamp = -1;
@@ -81,15 +90,21 @@ public class MusicScreen extends Screen {
         addRenderableWidget(tip(search, "Paste a YouTube song or playlist link, type a song name, "
                 + "or a local file/folder path like ~/Music"));
 
-        addRenderableWidget(tip(Button.builder(Component.literal("Search"), b -> search())
+        searchButton = tip(Button.builder(Component.literal("Search"), b -> search())
                 .bounds(lx + 134, top + 24, 60, 18)
-                .build(), "Look up the link or name; playlists and folders appear as a list of songs"));
+                .build(), "Look up a link or name, or name a new playlist");
+        addRenderableWidget(searchButton);
 
-        trackList = new TrackList(COLUMN, PANEL_HEIGHT - 54 - 34, top + 54, 14);
+        trackList = new TrackList(COLUMN, PANEL_HEIGHT - 54 - 60, top + 54, 14);
         trackList.setX(lx);
         trackList.onPick(track -> {
-            if (showSaved) {
+            if (mode == Mode.SAVED) {
                 MusicPlayer.INSTANCE.play(track);
+            } else if (mode == Mode.PLAYLISTS && openPlaylist == null) {
+                openPlaylist = Playlists.INSTANCE.find(track.playlistName());
+                refreshTrackList();
+                modeButton.setMessage(modeLabel());
+                updateSearch();
             } else {
                 MusicPlayer.INSTANCE.enqueue(track);
             }
@@ -98,20 +113,33 @@ public class MusicScreen extends Screen {
                 "Click a song to add it to the queue. In Saved mode it plays immediately"));
 
         modeButton = tip(Button.builder(modeLabel(), b -> {
-            showSaved = !showSaved;
+            if (mode == Mode.PLAYLISTS && openPlaylist != null) {
+                openPlaylist = null;
+            } else {
+                mode = switch (mode) {
+                    case RESULTS -> Mode.SAVED;
+                    case SAVED -> Mode.PLAYLISTS;
+                    case PLAYLISTS -> Mode.RESULTS;
+                };
+            }
             refreshTrackList();
             b.setMessage(modeLabel());
-        }).bounds(lx, top + PANEL_HEIGHT - 26, 62, 18).build(),
-                "Switch this list between search results and your saved songs");
+            updateSearch();
+        }).bounds(lx, top + PANEL_HEIGHT - 26, 74, 18).build(),
+                "Switch between search results, saved songs and your playlists");
         addRenderableWidget(modeButton);
 
         addRenderableWidget(tip(Button.builder(Component.literal("Save"), b -> saveCurrent())
-                .bounds(lx + 66, top + PANEL_HEIGHT - 26, 62, 18)
-                .build(), "Save the selected song, the song playing, or a link typed above"));
+                .bounds(lx + 78, top + PANEL_HEIGHT - 26, 56, 18)
+                .build(), "Save to your songs, or add the playing song to the open playlist"));
 
         addRenderableWidget(tip(Button.builder(Component.literal("Remove"), b -> removeSelected())
-                .bounds(lx + 132, top + PANEL_HEIGHT - 26, 62, 18)
-                .build(), "Delete the selected song from your saved list"));
+                .bounds(lx + 138, top + PANEL_HEIGHT - 26, 56, 18)
+                .build(), "Delete a saved song, a playlist, or a song inside a playlist"));
+
+        addRenderableWidget(tip(Button.builder(Component.literal("Download"), b -> download())
+                .bounds(lx, top + 250, COLUMN, 18)
+                .build(), "Save the selected or playing song as an mp3 in vcmusic-downloads"));
 
         pauseButton = tip(Button.builder(Component.literal("Pause"), b -> MusicPlayer.INSTANCE.togglePause())
                 .bounds(rx, top + 80, 62, 18)
@@ -154,6 +182,7 @@ public class MusicScreen extends Screen {
 
         refreshTrackList();
         refreshQueue();
+        updateSearch();
     }
 
     private static <T extends AbstractWidget> T tip(T widget, String text) {
@@ -162,9 +191,20 @@ public class MusicScreen extends Screen {
     }
 
     private Component modeLabel() {
-        return Component.literal(showSaved
-                ? "Saved " + Library.INSTANCE.songs.size()
-                : "Results " + results.size());
+        return switch (mode) {
+            case RESULTS -> Component.literal("Results " + results.size());
+            case SAVED -> Component.literal("Saved " + Library.INSTANCE.songs.size());
+            case PLAYLISTS -> Component.literal(openPlaylist == null ? "Playlists" : "Back");
+        };
+    }
+
+    /** In the playlist list the search box names a new playlist instead of searching. */
+    private void updateSearch() {
+        boolean naming = mode == Mode.PLAYLISTS && openPlaylist == null;
+        searchButton.setMessage(Component.literal(naming ? "Create" : "Search"));
+        search.setHint(Component.literal(naming
+                ? "New playlist name..."
+                : "Link, song name or folder path..."));
     }
 
     private Component duckLabel() {
@@ -176,7 +216,16 @@ public class MusicScreen extends Screen {
     }
 
     private void refreshTrackList() {
-        trackList.setTracks(showSaved ? List.copyOf(Library.INSTANCE.songs) : results);
+        switch (mode) {
+            case RESULTS -> trackList.setTracks(results);
+            case SAVED -> trackList.setTracks(List.copyOf(Library.INSTANCE.songs));
+            case PLAYLISTS -> trackList.setTracks(openPlaylist == null
+                    ? Playlists.INSTANCE.lists.stream()
+                            .map(p -> new Track(p.name() + " (" + p.tracks().size() + ")",
+                                    "playlist:" + p.name(), 0))
+                            .toList()
+                    : List.copyOf(openPlaylist.tracks()));
+        }
     }
 
     private void refreshQueue() {
@@ -191,6 +240,15 @@ public class MusicScreen extends Screen {
     private void search() {
         String query = search.getValue().trim();
         if (query.isEmpty()) {
+            return;
+        }
+        if (mode == Mode.PLAYLISTS && openPlaylist == null) {
+            openPlaylist = Playlists.INSTANCE.create(query);
+            search.setValue("");
+            refreshTrackList();
+            modeButton.setMessage(modeLabel());
+            updateSearch();
+            status = "Playlist ready - play a song, then Save adds it";
             return;
         }
         status = "Searching...";
@@ -208,8 +266,9 @@ public class MusicScreen extends Screen {
                 return;
             }
             results = tracks;
-            showSaved = false;
+            mode = Mode.RESULTS;
             modeButton.setMessage(modeLabel());
+            updateSearch();
             refreshTrackList();
             if (LocalMusic.isPath(query)) {
                 status = tracks.isEmpty() ? "No audio files in that folder" : tracks.size() + " local song(s)";
@@ -236,7 +295,22 @@ public class MusicScreen extends Screen {
     }
 
     private void saveCurrent() {
+        if (mode == Mode.PLAYLISTS && openPlaylist != null) {
+            Track playing = MusicPlayer.INSTANCE.current();
+            if (playing == null) {
+                status = "Play a song first, then Save adds it here";
+                return;
+            }
+            boolean added = openPlaylist.add(playing);
+            Playlists.INSTANCE.save();
+            refreshTrackList();
+            status = added ? "Added to " + openPlaylist.name() : "Already in " + openPlaylist.name();
+            return;
+        }
         Track track = trackList.selectedTrack();
+        if (track != null && track.isPlaylist()) {
+            track = null;
+        }
         if (track == null) {
             track = MusicPlayer.INSTANCE.current();
         }
@@ -251,13 +325,21 @@ public class MusicScreen extends Screen {
         boolean added = Library.INSTANCE.add(track);
         status = added ? "Saved: " + track.title() : "Already saved";
         // Show the saved list immediately, otherwise Save looks like it did nothing.
-        showSaved = true;
+        mode = Mode.SAVED;
         modeButton.setMessage(modeLabel());
+        updateSearch();
         refreshTrackList();
     }
 
     private void addAll() {
-        List<Track> source = showSaved ? Library.INSTANCE.songs : results;
+        List<Track> source = switch (mode) {
+            case RESULTS -> results;
+            case SAVED -> Library.INSTANCE.songs;
+            // In the playlist list this queues every playlist, so one click plays a whole set.
+            case PLAYLISTS -> openPlaylist == null
+                    ? Playlists.INSTANCE.lists.stream().flatMap(p -> p.tracks().stream()).toList()
+                    : openPlaylist.tracks();
+        };
         if (source.isEmpty()) {
             status = "Nothing to queue";
             return;
@@ -273,9 +355,58 @@ public class MusicScreen extends Screen {
         if (selected == null) {
             return;
         }
+        if (mode == Mode.PLAYLISTS && openPlaylist == null) {
+            Playlist playlist = Playlists.INSTANCE.find(selected.playlistName());
+            if (playlist != null) {
+                Playlists.INSTANCE.delete(playlist);
+                refreshTrackList();
+                modeButton.setMessage(modeLabel());
+                status = "Deleted playlist " + playlist.name();
+            }
+            return;
+        }
+        if (mode == Mode.PLAYLISTS) {
+            if (openPlaylist.remove(selected)) {
+                Playlists.INSTANCE.save();
+                refreshTrackList();
+                status = "Removed from " + openPlaylist.name();
+            }
+            return;
+        }
         Library.INSTANCE.remove(selected);
         refreshTrackList();
         status = "Removed: " + selected.title();
+    }
+
+    private void download() {
+        Track track = trackList.selectedTrack();
+        if (track != null && track.isPlaylist()) {
+            track = null;
+        }
+        if (track == null) {
+            track = MusicPlayer.INSTANCE.current();
+        }
+        if (track == null) {
+            status = "Nothing to download";
+            return;
+        }
+        if (track.url().startsWith("file:")) {
+            status = "Already on your disk";
+            return;
+        }
+        Track target = track;
+        status = "Downloading: " + target.title();
+        CompletableFuture.supplyAsync(() -> {
+            try {
+                return Downloader.download(target, MusicConfig.INSTANCE);
+            } catch (Exception e) {
+                throw new CompletionException(e);
+            }
+        }).whenComplete((dir, error) -> minecraft.execute(() -> {
+            status = error != null
+                    ? "Download failed: " + reason(error)
+                    : "Downloaded to " + dir.getFileName();
+        }));
     }
 
     @Override
@@ -302,7 +433,12 @@ public class MusicScreen extends Screen {
         String closeHint = "K / Esc to close";
         graphics.text(font, closeHint, right - 30 - font.width(closeHint), top + 7, MUTED, false);
 
-        graphics.text(font, showSaved ? "SAVED SONGS" : "SONGS", lx, top + 43, ACCENT, false);
+        String listTitle = switch (mode) {
+            case RESULTS -> "RESULTS";
+            case SAVED -> "SAVED SONGS";
+            case PLAYLISTS -> openPlaylist == null ? "PLAYLISTS" : openPlaylist.name();
+        };
+        graphics.text(font, fit(listTitle, COLUMN), lx, top + 43, ACCENT, false);
         graphics.text(font, "PLAYER", rx, top + 26, ACCENT, false);
         if (!status.isEmpty()) {
             String shown = fit(status, COLUMN - 52);
@@ -435,6 +571,7 @@ public class MusicScreen extends Screen {
     public void onClose() {
         MusicConfig.INSTANCE.save();
         Library.INSTANCE.save();
+        Playlists.INSTANCE.save();
         super.onClose();
     }
 }

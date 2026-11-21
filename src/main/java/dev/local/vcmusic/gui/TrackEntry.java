@@ -34,7 +34,8 @@ public class TrackEntry extends ContainerObjectSelectionList.Entry<TrackEntry> {
         int height = getContentHeight();
         if (hovered) {
             graphics.fill(x, y, x + width, y + height, 0x40FFFFFF);
-            graphics.setTooltipForNextFrame(Component.literal(track.display()), mouseX, mouseY);
+            // Playlist rows carry a count in the title, so the song tooltip would be wrong.
+            graphics.setTooltipForNextFrame(Component.literal(track.isPlaylist() ? track.title() : track.display()), mouseX, mouseY);
         }
         Minecraft minecraft = Minecraft.getInstance();
         String text = track.title();

@@ -18,6 +18,7 @@ public final class MusicMod implements ClientModInitializer {
     public void onInitializeClient() {
         MusicConfig.load();
         Library.load();
+        Playlists.load();
 
         KeyMapping.Category category = KeyMapping.Category.register(Identifier.fromNamespaceAndPath(MOD_ID, MOD_ID));
         openPanel = KeyMappingHelper.registerKeyMapping(
@@ -33,9 +34,13 @@ public final class MusicMod implements ClientModInitializer {
 
         // The library lives in the global config dir, so reload it on every join to keep the
         // same saved songs on all servers, and flush it before leaving.
-        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> Library.load());
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
+            Library.load();
+            Playlists.load();
+        });
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             Library.INSTANCE.save();
+            Playlists.INSTANCE.save();
             MusicPlayer.INSTANCE.stop();
             MusicPlayer.INSTANCE.resetLocalChannel();
         });
