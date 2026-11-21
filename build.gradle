@@ -3,7 +3,24 @@ plugins {
     id 'java'
 }
 
-version = project.mod_version
+// The pushed tag (v1.2.3) is the single source of truth for the version. A local build on an
+// exact tag uses that tag too; otherwise it falls back to gradle.properties. Override locally
+// with -Pmod_version=1.2.3.
+def resolveVersion = { ->
+    def tag = System.getenv('GITHUB_REF_TYPE') == 'tag' ? System.getenv('GITHUB_REF_NAME') : null
+    if (tag == null) {
+        try {
+            tag = providers.exec {
+                commandLine 'git', 'describe', '--tags', '--exact-match'
+                ignoreExitValue = true
+            }.standardOutput.asText.get().trim()
+        } catch (Exception ignored) {
+            tag = null
+        }
+    }
+    return (tag != null && tag.startsWith('v')) ? tag.substring(1) : project.mod_version
+}
+version = resolveVersion()
 group = project.maven_group
 
 base {
