@@ -6,7 +6,6 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.ContainerObjectSelectionList;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
-import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -45,7 +44,7 @@ public class TrackEntry extends ContainerObjectSelectionList.Entry<TrackEntry> {
         }
         AlbumArt.Art art = AlbumArt.get(track.thumbnail());
         if (art != null) {
-            graphics.blit(RenderPipelines.GUI_TEXTURED, art.id(), x + 1, y, 0, 0, 10, 10, art.width(), art.height());
+            AlbumArt.draw(graphics, art, x + 1, y, 10);
         } else if (minecraft.level != null) {
             graphics.item(ICON, x + 1, y, 10);
         }

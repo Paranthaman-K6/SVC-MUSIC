@@ -11,7 +11,6 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -39,11 +38,6 @@ public class MusicScreen extends Screen {
 
     private static final ItemStack NOTE = new ItemStack(Items.NOTE_BLOCK);
     private static final ItemStack DISC = new ItemStack(Items.MUSIC_DISC_CAT);
-    private static final ItemStack SEARCH_ICON = new ItemStack(Items.SPYGLASS);
-    private static final ItemStack BOOK = new ItemStack(Items.BOOK);
-    private static final ItemStack SAVE_ICON = new ItemStack(Items.CHEST);
-    private static final ItemStack REMOVE_ICON = new ItemStack(Items.BARRIER);
-    private static final ItemStack NEXT_ICON = new ItemStack(Items.SPECTRAL_ARROW);
     private static final ItemStack QUEUE_ICON = new ItemStack(Items.HOPPER);
 
     private int left;
@@ -294,13 +288,6 @@ public class MusicScreen extends Screen {
 
         super.extractRenderState(graphics, mouseX, mouseY, delta);
 
-        icon(graphics, SEARCH_ICON, lx + 136, top + 27);
-        icon(graphics, showSaved ? BOOK : SEARCH_ICON, lx + 1, top + PANEL_HEIGHT - 22);
-        icon(graphics, SAVE_ICON, lx + 67, top + PANEL_HEIGHT - 22);
-        icon(graphics, REMOVE_ICON, lx + 133, top + PANEL_HEIGHT - 22);
-        icon(graphics, DISC, rx + 1, top + 83);
-        icon(graphics, NEXT_ICON, rx + 67, top + 83);
-        icon(graphics, REMOVE_ICON, rx + 133, top + 83);
         icon(graphics, NOTE, rx + 3, top + 109);
         icon(graphics, NOTE, rx + 3, top + 131);
         icon(graphics, NOTE, rx + 3, top + 153);
@@ -313,8 +300,7 @@ public class MusicScreen extends Screen {
         Track current = MusicPlayer.INSTANCE.current();
         AlbumArt.Art art = current == null ? null : AlbumArt.get(current.thumbnail());
         if (art != null) {
-            graphics.blit(RenderPipelines.GUI_TEXTURED, art.id(), rx + 5, card + 4,
-                    0, 0, 16, 16, art.width(), art.height());
+            AlbumArt.draw(graphics, art, rx + 5, card + 4, 16);
         } else {
             icon(graphics, DISC, rx + 6, card + 5, 14);
         }
